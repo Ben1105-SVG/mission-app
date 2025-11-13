@@ -8,9 +8,6 @@
                     </p>
                     <h1 class="text-xl font-semibold">Group Readiness Questionnaire</h1>
                 </div>
-                <span class="rounded-full bg-emerald-100 px-3 py-1 text-sm font-medium text-emerald-700 shadow-sm dark:bg-emerald-500/20 dark:text-emerald-300">
-                    Powered by Vue
-                </span>
             </div>
         </header>
 

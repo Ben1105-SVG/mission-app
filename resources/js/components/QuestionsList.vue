@@ -58,6 +58,16 @@
             </a>
           </div>
         </div>
+
+        <div class="flex justify-end">
+          <button
+            type="button"
+            class="inline-flex items-center justify-center rounded-full border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-700 hover:border-emerald-200 hover:text-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:ring-offset-2"
+            @click="resetAll"
+          >
+            Start again
+          </button>
+        </div>
       </section>
 
       <!-- Basic info step ------------------------------------------------------------->
@@ -388,6 +398,7 @@ async function fetchQuestions() {
       id: item.id,
       text: item.text,
       group: item.group,
+      key: item.key ?? null,
       type: item.type ?? null,
       hint: item.hint ?? null,
       options: item.options ?? null,
@@ -520,9 +531,13 @@ async function submitForm() {
 
 function questionKey(question) {
   const text = (question.text || '').toLowerCase();
+  if (question.key) {
+    return String(question.key);
+  }
   const dictionary = [
     { terms: ['group or individual', 'inquiring on behalf'], key: 'group_context' },
-    { terms: ['church', 'organization'], key: 'church_affiliation' },
+    { terms: ['church affiliation'], key: 'church_affiliation' },
+    { terms: ['organization are you affiliated'], key: 'church_affiliation' },
     { terms: ['mission trip before', 'first mission trip'], key: 'leader_first_trip' },
     { terms: ['identify as lgbtq', 'lgbtq+'], key: 'leader_lgbtq' },
     { terms: ['pray', 'prayer'], key: 'prayer_comfort' },

@@ -28,7 +28,7 @@ class ApplicationDecisionService
 
         // Helper: mark a flag
         $mark = function ($key, $message) use (&$flags, &$explanations, $weights, &$score) {
-            $flags[] = $key;
+            $flags[$key] = $message;
             $explanations[$key] = $message;
             $score += $weights[$key] ?? -1;
         };
@@ -72,7 +72,7 @@ class ApplicationDecisionService
         // e.g. answers['previous_experience'] === 'no' -> first_trip
         $prev = $answers['previous_experience'] ?? $answers['participated_before'] ?? null;
         if ($prev !== null && in_array(strtolower(trim($prev)), ['no','never'])) {
-            if (!in_array('first_trip', $flags)) {
+            if (!array_key_exists('first_trip', $flags)) {
                 $mark('first_trip', 'No previous mission trip experience reported.');
             }
         }
@@ -92,7 +92,7 @@ class ApplicationDecisionService
 
         return [
             'status' => $status,
-            'flags' => $flags,
+            'flags' => array_values($flags),
             'score' => $score,
             'explanations' => $explanations,
         ];

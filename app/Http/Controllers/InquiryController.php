@@ -12,11 +12,10 @@ use App\Jobs\PushToActiveCampaignJob;
 class InquiryController extends Controller
 {
     /**
-     * Store a newly created inquiry and process the decision.
+     * Store a newly created inquiry and process the decision via GroqClient AI.
      */
     public function store(Request $request)
     {
-        // validate
         $data = $request->validate([
             'name' => 'required|string|max:191',
             'email' => 'required|email|max:191',
@@ -26,7 +25,11 @@ class InquiryController extends Controller
             'answers' => 'required|array',
         ]);
 
-        return DB::transaction(function () use ($data) {
+        // 1️⃣ Evaluate answers via GroqClient
+        $decision = ApplicationDecisionService::evaluate(null, $data['answers']);
+        
+        // 2️⃣ Save inquiry and answers in transaction
+        return DB::transaction(function () use ($data, $decision) {
             $inquiry = Inquiry::create([
                 'name' => $data['name'],
                 'email' => $data['email'],
@@ -35,63 +38,61 @@ class InquiryController extends Controller
                 'role_duration' => isset($data['role_duration']) ? floatval($data['role_duration']) : null,
             ]);
 
-            foreach ($data['answers'] as $key => $value) {
-                if (is_numeric($key)) {
+            foreach ($data['answers'] as $questionId => $answer) {
+                if (is_numeric($questionId)) {
                     Answer::create([
                         'inquiry_id' => $inquiry->id,
-                        'question_id' => (int) $key,
-                        'answer' => is_array($value) ? json_encode($value) : (string) $value,
+                        'question_id' => (int) $questionId,
+                        'answer' => is_array($answer) ? json_encode($answer) : (string) $answer,
                     ]);
                 }
             }
 
-            $decision = ApplicationDecisionService::evaluate($inquiry, $data['answers'] ?? []);
-            $flagsToSave = null;
-            if (isset($decision['flags']) && (is_array($decision['flags']) || is_object($decision['flags']))) {
-                // try to include explanations/score if present
-                $flagsToSave = [
-                    'flags' => $decision['flags'],
-                ];
-                if (isset($decision['explanations'])) $flagsToSave['explanations'] = $decision['explanations'];
-                if (isset($decision['score'])) $flagsToSave['score'] = $decision['score'];
-            } else {
-                $flagsToSave = ['flags' => $decision['flags'] ?? []];
+            // Prepare flags data to save (including explanations)
+            $flagsToSave = [
+                'flags' => $decision['flags'] ?? [],
+                'explanations' => $decision['explanations'] ?? [],
+                'score' => $decision['score'] ?? null,
+                'colors' => $decision['colors'] ?? null,
+            ];
+
+            // Ensure explanations is always an array (not null) for consistency
+            if (!is_array($flagsToSave['explanations'])) {
+                $flagsToSave['explanations'] = [];
             }
 
             $inquiry->status = $decision['status'] ?? 'yellow';
-            $inquiry->flags = json_encode($flagsToSave);
+            // Use array directly - Laravel will auto-encode due to 'flags' => 'array' cast
+            $inquiry->flags = $flagsToSave;
             $inquiry->save();
 
-            if (isset($decision['status']) && in_array($decision['status'], ['yellow', 'red'], true)) {
-
+            // 4️⃣ Dispatch job if needed
+            if (in_array($inquiry->status, ['yellow', 'red'], true)) {
                 dispatch(new PushToActiveCampaignJob($inquiry));
             }
 
+            // 5️⃣ Return JSON response
             return response()->json([
                 'status' => $inquiry->status,
                 'flags' => $decision['flags'] ?? [],
                 'explanations' => $decision['explanations'] ?? null,
                 'score' => $decision['score'] ?? null,
+                'colors' => $decision['colors'] ?? null,
                 'message' => $this->getMessageByStatus($inquiry->status),
-                'signup_link' => ($inquiry->status === 'green') ? config('missions.signup_url', 'https://trip-signup-link.com') : null,
+                'signup_link' => $inquiry->status === 'green'
+                    ? config('missions.signup_url', 'https://trip-signup-link.com')
+                    : null,
             ], 201);
         }, 5);
     }
 
-    /**
-     * Optional: return a friendly message based on status.
-     */
     private function getMessageByStatus($status)
     {
-        switch ($status) {
-            case 'green':
-                return 'Congratulations! You are approved. You can sign up for the trip.';
-            case 'yellow':
-                return 'Thanks for applying! Someone will follow up with you soon.';
-            case 'red':
-                return 'Thank you for your interest. We will be in touch for other opportunities.';
-            default:
-                return '';
-        }
+        return match($status) {
+            'green' => 'Congratulations! You are approved. You can sign up for the trip.',
+            'yellow' => 'Thanks for applying! Someone will follow up with you soon.',
+            'red' => 'Thank you for your interest. We will be in touch for other opportunities.',
+            default => '',
+        };
     }
 }

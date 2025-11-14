@@ -37,16 +37,42 @@
         </header>
 
         <div
-          v-if="result.flags?.length || result.status"
+          v-if="result.flags?.length || result.status || result.explanations"
           class="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm"
         >
-          <div v-if="result.status" class="mb-3">
+          <div v-if="result.status" class="mb-4">
             <p class="text-xs uppercase tracking-wide text-slate-500">Decision</p>
             <p class="text-lg font-semibold text-slate-900">{{ result.status.toUpperCase() }}</p>
+            <p v-if="result.score !== null && result.score !== undefined" class="mt-1 text-sm text-slate-600">
+              Score: {{ result.score }}/100
+            </p>
           </div>
-          <ul v-if="result.flags?.length" class="list-disc space-y-1 pl-5 text-sm text-slate-600">
-            <li v-for="flag in result.flags" :key="flag">{{ flag }}</li>
-          </ul>
+          
+          <div v-if="result.flags?.length" class="mb-4">
+            <p class="mb-2 text-xs uppercase tracking-wide text-slate-500">Flags</p>
+            <ul class="list-disc space-y-1 pl-5 text-sm text-slate-600">
+              <li v-for="flag in result.flags" :key="flag">{{ flag }}</li>
+            </ul>
+          </div>
+
+          <div v-if="result.explanations && Object.keys(result.explanations).length > 0" class="mb-4">
+            <p class="mb-2 text-xs uppercase tracking-wide text-slate-500">Explanations</p>
+            <div class="space-y-3">
+              <div
+                v-for="(explanation, flagKey) in result.explanations"
+                :key="flagKey"
+                class="rounded-lg border border-slate-100 bg-slate-50 px-4 py-3"
+              >
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-700 mb-1">
+                  {{ formatFlagKey(flagKey) }}
+                </p>
+                <p class="text-sm leading-relaxed text-slate-700">
+                  {{ explanation }}
+                </p>
+              </div>
+            </div>
+          </div>
+
           <div v-if="result.signup_link" class="mt-4">
             <a
               class="inline-flex rounded-full bg-white px-4 py-2 text-sm font-medium text-emerald-700 shadow-sm ring-1 ring-emerald-500 hover:bg-emerald-50"
@@ -573,6 +599,14 @@ function isNumericQuestion(question) {
   if (question.type === 'number') return true;
   const text = (question.text || '').toLowerCase();
   return ['how many', 'age range', 'average age', 'size of your group'].some((term) => text.includes(term));
+}
+
+function formatFlagKey(key) {
+  if (!key) return '';
+  // Convert snake_case or kebab-case to Title Case
+  return key
+    .replace(/[_-]/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 </script>
 

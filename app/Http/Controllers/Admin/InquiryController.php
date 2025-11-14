@@ -36,10 +36,26 @@ class InquiryController extends Controller
             'flags' => ['nullable', 'string'],
         ]);
 
-        $flags = $this->parseFlags($data['flags'] ?? '');
+        $parsedFlags = $this->parseFlags($data['flags'] ?? '');
+
+        // Preserve existing flags structure (explanations, score, colors) and update only the flags array
+        $existingFlags = $inquiry->flags ?? [];
+        if (!is_array($existingFlags)) {
+            $existingFlags = [];
+        }
+
+        // Update flags structure while preserving other data
+        $flagsToSave = array_merge([
+            'flags' => [],
+            'explanations' => [],
+            'score' => null,
+            'colors' => null,
+        ], $existingFlags);
+
+        $flagsToSave['flags'] = $parsedFlags;
 
         $inquiry->status = $data['status'];
-        $inquiry->flags = $flags;
+        $inquiry->flags = $flagsToSave;
         $inquiry->save();
 
         return back()->with('status', 'Inquiry updated successfully.');

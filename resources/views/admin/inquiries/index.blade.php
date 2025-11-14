@@ -78,12 +78,28 @@
                                                 <option value="{{ $value }}" @selected($inquiry->status === $value)>{{ $label }}</option>
                                             @endforeach
                                         </select>
+                                        @php
+                                            $flagsText = old('flags', '');
+                                            if (!$flagsText && is_array($inquiry->flags) && count($inquiry->flags) > 0) {
+                                                // New format: flags are in ['flags'] key
+                                                if (isset($inquiry->flags['flags']) && is_array($inquiry->flags['flags'])) {
+                                                    $flagsText = implode("\n", array_filter($inquiry->flags['flags']));
+                                                }
+                                                // Old format: flags are direct array (numeric keys)
+                                                else {
+                                                    $keys = array_keys($inquiry->flags);
+                                                    if (!empty($keys) && $keys === range(0, count($inquiry->flags) - 1)) {
+                                                        $flagsText = implode("\n", array_filter($inquiry->flags));
+                                                    }
+                                                }
+                                            }
+                                        @endphp
                                         <textarea
                                             name="flags"
                                             rows="3"
                                             placeholder="One flag per line…"
                                             class="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
-                                        >{{ old('flags', $inquiry->flags ? implode("\n", (array) $inquiry->flags) : '') }}</textarea>
+                                        >{{ $flagsText }}</textarea>
                                         <button
                                             type="submit"
                                             class="w-full rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400"
@@ -93,13 +109,46 @@
                                     </form>
                                 </td>
                                 <td class="px-6 py-4">
+                                    @php
+                                        $flagsArray = [];
+                                        if (is_array($inquiry->flags) && count($inquiry->flags) > 0) {
+                                            // New format: flags are in ['flags'] key
+                                            if (isset($inquiry->flags['flags']) && is_array($inquiry->flags['flags'])) {
+                                                $flagsArray = array_filter($inquiry->flags['flags']);
+                                            }
+                                            // Old format: flags are direct array (numeric keys)
+                                            else {
+                                                $keys = array_keys($inquiry->flags);
+                                                if (!empty($keys) && $keys === range(0, count($inquiry->flags) - 1)) {
+                                                    $flagsArray = array_filter($inquiry->flags);
+                                                }
+                                            }
+                                        }
+                                        $explanations = (is_array($inquiry->flags) && isset($inquiry->flags['explanations']) && is_array($inquiry->flags['explanations'])) ? $inquiry->flags['explanations'] : [];
+                                        $score = (is_array($inquiry->flags) && isset($inquiry->flags['score'])) ? $inquiry->flags['score'] : null;
+                                    @endphp
                                     <ul class="space-y-1 text-xs text-slate-600">
-                                        @forelse ((array) $inquiry->flags as $flag)
-                                            <li class="rounded bg-slate-100 px-2 py-1">{{ $flag }}</li>
+                                        @forelse ($flagsArray as $flag)
+                                            <li class="rounded bg-slate-100 px-2 py-1">{{ is_string($flag) ? $flag : json_encode($flag) }}</li>
                                         @empty
                                             <li class="text-slate-400">No flags</li>
                                         @endforelse
                                     </ul>
+                                    @if (count($explanations) > 0)
+                                        <div class="mt-2 text-xs text-slate-500">
+                                            <strong>Explanations:</strong>
+                                            <ul class="mt-1 space-y-1 pl-4">
+                                                @foreach ($explanations as $key => $explanation)
+                                                    <li class="italic">{{ is_string($explanation) ? $explanation : json_encode($explanation) }}</li>
+                                                @endforeach
+                                            </ul>
+                                        </div>
+                                    @endif
+                                    @if ($score !== null)
+                                        <div class="mt-1 text-xs text-slate-500">
+                                            <strong>Score:</strong> {{ $score }}/100
+                                        </div>
+                                    @endif
                                 </td>
                                 <td class="px-6 py-4 text-xs text-slate-500">
                                     {{ $inquiry->created_at->format('M j, Y g:i A') }}

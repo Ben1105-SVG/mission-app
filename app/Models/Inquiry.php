@@ -27,6 +27,7 @@ class Inquiry extends Model
         'flags' => 'array',
     ];
 
+
     public function answers()
     {
         return $this->hasMany(Answer::class);

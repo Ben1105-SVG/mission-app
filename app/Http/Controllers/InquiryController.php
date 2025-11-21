@@ -25,9 +25,8 @@ class InquiryController extends Controller
             'answers' => 'required|array',
         ]);
 
-        // 1️⃣ Evaluate answers via GroqClient
         $decision = ApplicationDecisionService::evaluate(null, $data['answers']);
-        
+
         // 2️⃣ Save inquiry and answers in transaction
         return DB::transaction(function () use ($data, $decision) {
             $inquiry = Inquiry::create([

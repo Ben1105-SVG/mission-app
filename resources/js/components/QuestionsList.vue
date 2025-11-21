@@ -36,53 +36,16 @@
           </p>
         </header>
 
-        <div
-          v-if="result.flags?.length || result.status || result.explanations"
-          class="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm"
-        >
-          <div v-if="result.status" class="mb-4">
-            <p class="text-xs uppercase tracking-wide text-slate-500">Decision</p>
-            <p class="text-lg font-semibold text-slate-900">{{ result.status.toUpperCase() }}</p>
-            <p v-if="result.score !== null && result.score !== undefined" class="mt-1 text-sm text-slate-600">
-              Score: {{ result.score }}/100
-            </p>
-          </div>
-          
-          <div v-if="result.flags?.length" class="mb-4">
-            <p class="mb-2 text-xs uppercase tracking-wide text-slate-500">Flags</p>
-            <ul class="list-disc space-y-1 pl-5 text-sm text-slate-600">
-              <li v-for="flag in result.flags" :key="flag">{{ flag }}</li>
-            </ul>
-          </div>
-
-          <div v-if="result.explanations && Object.keys(result.explanations).length > 0" class="mb-4">
-            <p class="mb-2 text-xs uppercase tracking-wide text-slate-500">Explanations</p>
-            <div class="space-y-3">
-              <div
-                v-for="(explanation, flagKey) in result.explanations"
-                :key="flagKey"
-                class="rounded-lg border border-slate-100 bg-slate-50 px-4 py-3"
-              >
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-700 mb-1">
-                  {{ formatFlagKey(flagKey) }}
-                </p>
-                <p class="text-sm leading-relaxed text-slate-700">
-                  {{ explanation }}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="result.signup_link" class="mt-4">
-            <a
-              class="inline-flex rounded-full bg-white px-4 py-2 text-sm font-medium text-emerald-700 shadow-sm ring-1 ring-emerald-500 hover:bg-emerald-50"
-              :href="result.signup_link"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Reserve your trip
-            </a>
-          </div>
+        <!-- Signup link for Green status only (status/score hidden from applicants) -->
+        <div v-if="result.signup_link" class="mt-4">
+          <a
+            class="inline-flex rounded-full bg-white px-4 py-2 text-sm font-medium text-emerald-700 shadow-sm ring-1 ring-emerald-500 hover:bg-emerald-50"
+            :href="result.signup_link"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Reserve your trip
+          </a>
         </div>
 
         <div class="flex justify-end">
@@ -204,6 +167,14 @@
             :key="question.id"
             class="rounded-2xl border border-slate-200/80 bg-white px-5 py-4 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-lg"
           >
+            <!-- Marriage & Sexuality Statement -->
+            <div v-if="question.key === 'view_of_marriage'" class="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-relaxed text-slate-700">
+              <p class="mb-3 font-semibold text-slate-900">At Adventures in Missions, we hold to a Biblical view of marriage and sexuality.</p>
+              <p class="mb-2">We believe that God's design for marriage is a covenant relationship between one man and one woman, and that sexuality is intended to be expressed within that covenant.</p>
+              <p class="mb-2">While we serve people from many different backgrounds and perspectives, our first responsibility is to honor God, uphold His Word, and steward well the trust of our ministry partners, hosts, and participants. For this reason, not everyone will be a fit for our programs. Out of respect for the communities we serve and the unity of our teams, we cannot take every applicant onto the mission field.</p>
+              <p>We ask that all participants, regardless of personal beliefs, submit to the authority of our leadership for the duration of the program. This includes refraining from all romantic relationships during the trip. The purpose of these guidelines is to ensure that the focus remains on Christ, discipleship, and serving others.</p>
+            </div>
+
             <label class="block text-sm font-semibold text-slate-900 leading-relaxed">
               {{ question.text }}
             </label>
@@ -238,6 +209,13 @@
                 min="0"
                 class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm shadow-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-200"
               />
+
+              <textarea
+                v-else-if="isTextareaQuestion(question)"
+                v-model="answers[questionKey(question)]"
+                rows="4"
+                class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm shadow-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+              ></textarea>
 
               <input
                 v-else
@@ -599,6 +577,12 @@ function isNumericQuestion(question) {
   if (question.type === 'number') return true;
   const text = (question.text || '').toLowerCase();
   return ['how many', 'age range', 'average age', 'size of your group'].some((term) => text.includes(term));
+}
+
+function isTextareaQuestion(question) {
+  if (question.type === 'textarea') return true;
+  const text = (question.text || '').toLowerCase();
+  return ['marriage', 'sexuality', 'challenges', 'concerns', 'hesitations'].some((term) => text.includes(term));
 }
 
 function formatFlagKey(key) {

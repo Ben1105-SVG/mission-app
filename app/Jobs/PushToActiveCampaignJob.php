@@ -74,6 +74,9 @@ class PushToActiveCampaignJob implements ShouldQueue
 
             if ($contactId) {
                 $this->inquiry->forceFill(['ac_contact_id' => $contactId])->save();
+                
+                // Add all form details as custom field values
+                $this->addCustomFields($baseUrl, $apiKey, $contactId);
             } else {
                 Log::warning('ActiveCampaign sync returned no contact id', [
                     'inquiry_id' => $this->inquiry->id,
@@ -88,6 +91,60 @@ class PushToActiveCampaignJob implements ShouldQueue
                 'exception' => $e->getMessage(),
             ]);
             throw $e;
+        }
+    }
+
+    private function addCustomFields(string $baseUrl, string $apiKey, int $contactId): void
+    {
+        try {
+            // Get all answers for this inquiry
+            $answers = $this->inquiry->answers()->with('question')->get();
+            
+            // Build a summary note with all form details
+            $noteContent = "Application Status: " . strtoupper($this->inquiry->status ?? 'UNKNOWN') . "\n\n";
+            
+            if ($this->inquiry->group_leader_role) {
+                $noteContent .= "Group Leader Role: {$this->inquiry->group_leader_role}\n";
+            }
+            if ($this->inquiry->role_duration) {
+                $noteContent .= "Role Duration: {$this->inquiry->role_duration} years\n";
+            }
+            
+            // Add internal summary if available
+            $flags = $this->inquiry->flags ?? [];
+            if (isset($flags['explanations']['internal'])) {
+                $noteContent .= "\nInternal Summary: {$flags['explanations']['internal']}\n";
+            }
+            
+            // Add all question answers
+            $noteContent .= "\n--- Form Responses ---\n";
+            foreach ($answers as $answer) {
+                $questionText = $answer->question->text ?? "Question {$answer->question_id}";
+                $answerText = is_string($answer->answer) ? $answer->answer : json_encode($answer->answer);
+                $noteContent .= "\n{$questionText}\n{$answerText}\n";
+            }
+            
+            // Add note to contact
+            $response = Http::withHeaders(['Api-Token' => $apiKey])
+                ->post($baseUrl . '/api/3/notes', [
+                    'note' => [
+                        'contact' => $contactId,
+                        'note' => $noteContent,
+                    ],
+                ]);
+            
+            if (!$response->successful()) {
+                Log::warning('ActiveCampaign note creation failed', [
+                    'inquiry_id' => $this->inquiry->id,
+                    'status' => $response->status(),
+                ]);
+            }
+        } catch (Throwable $e) {
+            // Don't fail the whole job if custom fields fail
+            Log::warning('ActiveCampaign custom fields exception', [
+                'inquiry_id' => $this->inquiry->id,
+                'exception' => $e->getMessage(),
+            ]);
         }
     }
 

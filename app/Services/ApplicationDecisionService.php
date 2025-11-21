@@ -22,7 +22,7 @@ class ApplicationDecisionService
                 'messages' => [
                     [
                         'role' => 'system',
-                        'content' => 'You are an assistant that evaluates applications as green, yellow, or red. Return a JSON object with keys: status, score, flags, explanations, colors. The colors key should contain: primary (hex color for main status), secondary (hex color for accent), and answerColors (object mapping question IDs to hex colors based on each answer). Generate meaningful colors that reflect the sentiment and safety level of each answer.'
+                        'content' => 'You are an evaluator for Adventures in Missions. Always return valid JSON only, no additional text or markdown formatting.'
                     ],
                     [
                         'role' => 'user',
@@ -53,28 +53,28 @@ class ApplicationDecisionService
             if (!$decision || !isset($decision['status'])) {
                 $decision = [
                     'status' => 'yellow',
-                    'score' => null,
-                    'flags' => [],
-                    'explanations' => ['general' => 'Could not determine automatically.'],
-                    'colors' => self::getDefaultColors('yellow'),
+                    'keyStrengths' => [],
+                    'keyConcerns' => ['Could not determine automatically.'],
+                    'internalSummary' => 'Could not determine automatically. Please review manually.',
                 ];
             }
 
-            // sanitize fields
-            $decision['flags'] = is_array($decision['flags'] ?? null) ? array_values($decision['flags']) : [];
-            $decision['explanations'] = is_array($decision['explanations'] ?? null) ? $decision['explanations'] : [];
-            $decision['score'] = isset($decision['score']) ? max(0, min(100, (int)$decision['score'])) : null;
-            
-            // Ensure colors are present and properly formatted
-            if (!isset($decision['colors']) || !is_array($decision['colors'])) {
-                $decision['colors'] = self::getDefaultColors($decision['status'] ?? 'yellow');
-            } else {
-                // Validate and set default colors if missing
-                $decision['colors'] = array_merge(
-                    self::getDefaultColors($decision['status'] ?? 'yellow'),
-                    $decision['colors']
-                );
+            // Normalize status to lowercase
+            $decision['status'] = strtolower($decision['status'] ?? 'yellow');
+            if (!in_array($decision['status'], ['green', 'yellow', 'red'])) {
+                $decision['status'] = 'yellow';
             }
+
+            // Ensure new format fields exist
+            $decision['keyStrengths'] = is_array($decision['keyStrengths'] ?? null) ? array_values($decision['keyStrengths']) : [];
+            $decision['keyConcerns'] = is_array($decision['keyConcerns'] ?? null) ? array_values($decision['keyConcerns']) : [];
+            $decision['internalSummary'] = $decision['internalSummary'] ?? 'No summary provided.';
+
+            // Map new format to old format for backward compatibility
+            $decision['flags'] = $decision['keyConcerns'];
+            $decision['explanations'] = ['internal' => $decision['internalSummary']];
+            $decision['score'] = null; // No numeric score in new format
+            $decision['colors'] = self::getDefaultColors($decision['status']);
 
         } catch (\Throwable $e) {
             Log::error('GroqClient evaluation failed', [
@@ -84,9 +84,12 @@ class ApplicationDecisionService
 
             $decision = [
                 'status' => 'yellow',
+                'keyStrengths' => [],
+                'keyConcerns' => ['Could not determine automatically.'],
+                'internalSummary' => 'Evaluation failed. Please review manually.',
+                'flags' => ['Could not determine automatically.'],
+                'explanations' => ['internal' => 'Evaluation failed. Please review manually.'],
                 'score' => null,
-                'flags' => [],
-                'explanations' => ['general' => 'Could not determine automatically.'],
                 'colors' => self::getDefaultColors('yellow'),
             ];
         }
@@ -96,37 +99,143 @@ class ApplicationDecisionService
 
     private static function buildPrompt(array $answers): string
     {
+        // Map question keys to readable labels for AI
+        $questionMap = [
+            'group_or_individual' => 'Group or Individual',
+            'church_affiliation' => 'Church Affiliation',
+            'group_leader_role_and_duration' => 'Group Leader Role',
+            'previous_experience' => 'Previous Mission Trip Experience',
+            'praying' => 'Spiritual Leadership',
+            'faith_sharing' => 'Faith Sharing',
+            'group_composition' => 'Group Composition',
+            'purpose_of_trip' => 'Purpose of Trip',
+            'view_of_marriage' => 'View of Marriage & Sexuality',
+            'prayer_group_comfort' => 'Prayer Comfort',
+            'team_readiness' => 'Team Readiness',
+            'challenges' => 'Challenges or Concerns',
+            'statement_of_beliefs' => 'Statement of Beliefs',
+        ];
+
         $formattedAnswers = [];
-        foreach ($answers as $questionId => $answer) {
-            $formattedAnswers[] = "Q{$questionId}: " . (is_array($answer) ? implode(', ', $answer) : $answer);
+        foreach ($questionMap as $key => $label) {
+            if (isset($answers[$key])) {
+                $value = is_array($answers[$key]) ? implode(', ', $answers[$key]) : $answers[$key];
+                $formattedAnswers[] = "{$label}: {$value}";
+            }
         }
 
-        return "Evaluate the applicant based on these answers. Return a JSON object with the following structure:
+        // Also include answers by question ID as fallback
+        foreach ($answers as $questionId => $answer) {
+            if (is_numeric($questionId)) {
+                $value = is_array($answer) ? implode(', ', $answer) : $answer;
+                $formattedAnswers[] = "Question {$questionId}: {$value}";
+            }
+        }
+
+        $answersText = implode("\n", $formattedAnswers);
+
+        return "You are an evaluator for Adventures in Missions.
+
+Your role is to read an applicant's responses to 13 questions and assign a classification: Green, Yellow, or Red based on ministry readiness, spiritual alignment, emotional maturity, and leadership fit.
+
+Your evaluation must follow the rules below.
+
+Do not reveal the internal scoring logic in your output.
+
+SCORING RULES (INTERNAL USE ONLY — NEVER EXPLAIN TO USER)
+
+Neutral Questions (no scoring impact)
+These questions should be acknowledged but never influence the score:
+- Group or Individual
+- Church Affiliation
+- Group Composition
+- Purpose of Trip
+
+Scored Questions
+
+3. Group Leader Role (time in role)
+Less than 1 year → Yellow
+1+ year → Green
+No Reds for this question.
+
+4. Previous Mission Trip Experience
+No previous experience → Yellow
+Yes → Green
+No Reds for this question.
+
+5. Spiritual Leadership (comfort leading prayer/spiritual conversations)
+Comfortable → Green
+Uncomfortable → Yellow (can become Red based on combined concerns)
+
+6. Faith Sharing (experience + comfort)
+Has shared & comfortable → Green
+Has not shared OR is uncomfortable → Yellow (can become Red depending on total concerns)
+
+9. View of Marriage & Sexuality (agreement with AIM statement)
+Agrees → Green
+Partially agrees / expresses uncertainty → Yellow
+Does not agree → Red
+
+10. Prayer Comfort (praying in group setting)
+Comfortable → Green
+Hesitant → Yellow
+Not comfortable → Red
+
+11. Team Readiness (spiritual maturity assessment)
+Ready → Green
+Somewhat ready / unsure / slightly ready → Yellow
+No Reds for this question.
+
+12. Challenges or Concerns
+No hesitations → Green
+Some concern / mild hesitation → Yellow
+Significant concern → Red
+
+13. Statement of Beliefs Acceptance
+Agrees → Green
+Does not agree → Red
+No Yellows for this question.
+
+OVERALL CLASSIFICATION RULES
+
+GREEN (Auto-Approval)
+- No Reds
+- Fewer than 3 Yellow flags
+- Appears spiritually aligned, emotionally stable, and ready for mission context
+- Can automatically sign up and pay deposit.
+
+YELLOW (Needs Mobilization Conversation)
+- No Reds
+- 3 or more Yellows OR one deeply concerning Yellow (prayer comfort, faith sharing, leadership)
+- Cannot auto-enroll. Requires phone call with Mobilization Expert.
+
+RED (Requires Mobilization Screening)
+- Any Red answer in any category
+- Cannot auto-enroll under any circumstances
+- Must speak with Mobilization Expert before next step.
+
+OUTPUT INSTRUCTIONS
+
+When giving your final evaluation:
+- Never reveal the scoring rules.
+- Provide:
+  - Overall Score (Green / Yellow / Red)
+  - Key Strengths (2–5 bullets)
+  - Key Concerns (2–5 bullets)
+  - Summary for Internal Review (why the applicant got this color)
+- Use professional, concise language.
+- Never mention sexuality, orientation, or \"red flag rules.\"
+
+Return a JSON object with the following structure:
 {
   \"status\": \"green\" | \"yellow\" | \"red\",
-  \"score\": 0-100,
-  \"flags\": [\"array\", \"of\", \"flag\", \"strings\"],
-  \"explanations\": {\"flag_key\": \"explanation text\"},
-  \"colors\": {
-    \"primary\": \"#hexcolor\" (main status color - green for approved, yellow for review, red for concerns),
-    \"secondary\": \"#hexcolor\" (accent color that complements primary),
-    \"answerColors\": {
-      \"questionId\": \"#hexcolor\" (color for each answer based on sentiment: positive=greens, neutral=yellows, negative=reds)
-    }
-  }
+  \"keyStrengths\": [\"strength 1\", \"strength 2\", ...],
+  \"keyConcerns\": [\"concern 1\", \"concern 2\", ...],
+  \"internalSummary\": \"A short paragraph explaining why the applicant received this score, referencing themes but not internal scoring mechanics.\"
 }
 
-Generate meaningful colors:
-- Primary: Use #22c55e (green) for 'green' status, #eab308 (yellow) for 'yellow', #ef4444 (red) for 'red', or create variations
-- Secondary: Choose complementary colors (e.g., lighter/darker shades, or contrasting accents)
-- AnswerColors: Assign colors to each question ID based on answer sentiment:
-  * Positive/safe answers: green shades (#22c55e, #16a34a, #15803d)
-  * Neutral/moderate answers: yellow/amber shades (#eab308, #f59e0b, #d97706)
-  * Negative/concerning answers: red/orange shades (#ef4444, #f97316, #dc2626)
-  * Missing/unknown: gray shades (#6b7280, #9ca3af)
-
-Answers:\n"
-            . implode("\n", $formattedAnswers);
+Applicant's Responses:
+{$answersText}";
     }
 
     /**

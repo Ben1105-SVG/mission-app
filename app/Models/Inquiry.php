@@ -19,6 +19,7 @@ class Inquiry extends Model
         'lgbtq',
         'status',
         'flags',
+        'ac_contact_id',
     ];
 
     protected $casts = [

@@ -28,5 +28,8 @@ class DatabaseSeeder extends Seeder
             'email' => 'moderator@example.com',
             'role' => 'moderator',
         ]);
+
+        // Seed questions
+        $this->call(QuestionsTableSeeder::class);
     }
 }

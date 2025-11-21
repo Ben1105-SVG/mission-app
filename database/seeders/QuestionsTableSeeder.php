@@ -10,6 +10,9 @@ class QuestionsTableSeeder extends Seeder
 {
     public function run(): void
     {
+        // Clear existing questions to avoid duplicates
+        DB::table('questions')->truncate();
+
         $now = now();
 
         $questions = [
@@ -19,7 +22,7 @@ class QuestionsTableSeeder extends Seeder
                 'group' => 1,
                 'key' => 'group_or_individual',
                 'type' => 'select',
-                'options' => ['Youth group','Family','Individual'],
+                'options' => ['Youth group', 'Family', 'Individual'],
                 'hint' => null,
             ],
             [
@@ -28,7 +31,7 @@ class QuestionsTableSeeder extends Seeder
                 'key' => 'church_affiliation',
                 'type' => 'text',
                 'options' => null,
-                'hint' => 'Name of church / organization (if any).',
+                'hint' => null,
             ],
             [
                 'text' => 'Group Leader Role: What is your role or position within the church or group? How long have you served in this role?',
@@ -36,7 +39,7 @@ class QuestionsTableSeeder extends Seeder
                 'key' => 'group_leader_role_and_duration',
                 'type' => 'text',
                 'options' => null,
-                'hint' => 'Include title and years (e.g. Youth Pastor — 2 years).',
+                'hint' => null,
             ],
 
             // Group 2 (Q4-6)
@@ -45,15 +48,15 @@ class QuestionsTableSeeder extends Seeder
                 'group' => 2,
                 'key' => 'previous_experience',
                 'type' => 'select',
-                'options' => ['Yes','No'],
-                'hint' => 'If yes, briefly list countries/years.',
+                'options' => ['Yes', 'No'],
+                'hint' => null,
             ],
             [
                 'text' => 'Spiritual Leadership: How comfortable are you leading others in prayer and spiritual discussions during a trip?',
                 'group' => 2,
                 'key' => 'praying',
                 'type' => 'comfort',
-                'options' => ['Very comfortable','Comfortable','Somewhat uncomfortable','Uncomfortable'],
+                'options' => ['Very comfortable', 'Comfortable', 'Somewhat uncomfortable', 'Uncomfortable'],
                 'hint' => null,
             ],
             [
@@ -61,7 +64,7 @@ class QuestionsTableSeeder extends Seeder
                 'group' => 2,
                 'key' => 'faith_sharing',
                 'type' => 'comfort',
-                'options' => ['Very comfortable','Comfortable','Somewhat uncomfortable','Uncomfortable','Never shared'],
+                'options' => ['Very comfortable', 'Comfortable', 'Somewhat uncomfortable', 'Uncomfortable', 'Never shared'],
                 'hint' => null,
             ],
 
@@ -72,7 +75,7 @@ class QuestionsTableSeeder extends Seeder
                 'key' => 'group_composition',
                 'type' => 'text',
                 'options' => null,
-                'hint' => 'Example: 12 people — ages 16–25.',
+                'hint' => null,
             ],
             [
                 'text' => 'Purpose of Trip: What are your primary goals or hopes for this mission experience?',
@@ -80,7 +83,7 @@ class QuestionsTableSeeder extends Seeder
                 'key' => 'purpose_of_trip',
                 'type' => 'text',
                 'options' => null,
-                'hint' => 'Examples: construction, evangelism, discipleship, medical.',
+                'hint' => null,
             ],
             [
                 'text' => 'View of marriage and sexuality: How would you respond to this statement about our view of marriage and sexuality? Is there anything about it that concerns you?',
@@ -88,23 +91,23 @@ class QuestionsTableSeeder extends Seeder
                 'key' => 'view_of_marriage',
                 'type' => 'textarea',
                 'options' => null,
-                'hint' => 'Provide candid response — this helps us determine fit.',
+                'hint' => null,
             ],
             [
                 'text' => 'Prayer: How comfortable are you praying in a group setting?',
                 'group' => 3,
                 'key' => 'prayer_group_comfort',
                 'type' => 'comfort',
-                'options' => ['Very comfortable','Comfortable','Somewhat uncomfortable','Uncomfortable'],
+                'options' => ['Very comfortable', 'Comfortable', 'Somewhat uncomfortable', 'Uncomfortable'],
                 'hint' => null,
             ],
             [
-                'text' => 'Team Readiness: How would you describe your group’s spiritual maturity and readiness for ministry?',
+                'text' => "Team Readiness: How would you describe your group's spiritual maturity and readiness for ministry?",
                 'group' => 3,
                 'key' => 'team_readiness',
                 'type' => 'text',
                 'options' => null,
-                'hint' => 'Briefly describe training, discipleship, or prior ministry experience.',
+                'hint' => null,
             ],
 
             // Group 4 (Q12-13)
@@ -114,15 +117,15 @@ class QuestionsTableSeeder extends Seeder
                 'key' => 'challenges',
                 'type' => 'textarea',
                 'options' => null,
-                'hint' => 'e.g., health concerns, mobility, language barriers.',
+                'hint' => null,
             ],
             [
-                'text' => 'Statement of Beliefs: Have you reviewed and do you agree with Adventures in Missions’ statement of faith and code of conduct for mission teams?',
+                'text' => "Statement of Beliefs: Have you reviewed and do you agree with Adventures in Missions' statement of faith and code of conduct for mission teams?",
                 'group' => 4,
                 'key' => 'statement_of_beliefs',
                 'type' => 'select',
-                'options' => ['Yes, I agree','No — I have concerns'],
-                'hint' => 'Please read the statement of faith and code of conduct before answering.',
+                'options' => ['Yes, I agree', 'No — I have concerns'],
+                'hint' => null,
             ],
         ];
 

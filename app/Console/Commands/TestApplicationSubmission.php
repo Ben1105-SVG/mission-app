@@ -55,12 +55,28 @@ class TestApplicationSubmission extends Command
             // Use the application's actual URL or construct from request
             $baseUrl = config('app.url');
             if (empty($baseUrl) || $baseUrl === 'http://localhost') {
-                // Try to detect from environment
-                $baseUrl = env('APP_URL', 'http://localhost:8000');
+                // Default to Laravel's default development server port
+                $baseUrl = 'http://localhost:8000';
             }
             $baseUrl = rtrim($baseUrl, '/');
             
             $this->line('   Base URL: ' . $baseUrl);
+            $this->line('   Endpoint: ' . $baseUrl . '/api/inquiries');
+            $this->newLine();
+            
+            // Check if server is running
+            try {
+                $healthCheck = Http::timeout(2)->get($baseUrl . '/up');
+                if (!$healthCheck->successful()) {
+                    $this->warn('⚠️  Server might not be running. Make sure to start it with:');
+                    $this->line('   php artisan serve');
+                    $this->newLine();
+                }
+            } catch (\Exception $e) {
+                $this->warn('⚠️  Cannot reach server at ' . $baseUrl);
+                $this->warn('   Make sure Laravel is running: php artisan serve');
+                $this->newLine();
+            }
             
             $response = Http::timeout(30)
                 ->post($baseUrl . '/api/inquiries', $payload);
@@ -89,12 +105,17 @@ class TestApplicationSubmission extends Command
                 
                 if ($status === 'green') {
                     $this->line('   ✓ User gets signup link');
-                    $this->line('   ✓ NOT sent to ActiveCampaign');
+                    $this->line('   ✓ Sent to ActiveCampaign (queued) - Tagged with "Green"');
+                    $this->line('   ✓ Complete form details in notes');
                     $this->line('   ✓ Can proceed to payment');
                 } elseif (in_array($status, ['yellow', 'red'])) {
                     $this->line('   ✓ Sent to ActiveCampaign (queued)');
                     $this->line('   ✓ Tagged with "' . ucfirst($status) . '" tag');
                     $this->line('   ✓ Complete form details in notes');
+                }
+                
+                // All statuses are sent to ActiveCampaign
+                if (in_array($status, ['green', 'yellow', 'red'])) {
                     $this->line('   ⏳ Check queue: php artisan queue:work');
                     $this->line('   ⏳ Check ActiveCampaign for contact');
                 }

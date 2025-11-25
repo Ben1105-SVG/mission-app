@@ -15,16 +15,12 @@ class Inquiry extends Model
         'phone',
         'group_leader_role',
         'role_duration',
-        'first_trip',
-        'lgbtq',
         'status',
         'flags',
         'ac_contact_id',
     ];
 
     protected $casts = [
-        'first_trip' => 'boolean',
-        'lgbtq' => 'boolean',
         'flags' => 'array',
         'role_duration' => 'decimal:2',
     ];

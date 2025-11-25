@@ -14,21 +14,22 @@ class InquiryController extends Controller
     /**
      * Store a newly created inquiry and process the decision via GroqClient AI.
      */
-    public function store(Request $request)
+    public function store(Request $request): \Illuminate\Http\JsonResponse
     {
         $data = $request->validate([
-            'name' => 'required|string|max:191',
-            'email' => 'required|email|max:191',
-            'phone' => 'nullable|string|max:50',
-            'group_leader_role' => 'nullable|string|max:191',
-            'role_duration' => 'nullable|numeric|min:0',
-            'answers' => 'required|array',
-            'answers.*' => 'nullable',
+            'name' => ['required', 'string', 'max:191'],
+            'email' => ['required', 'email', 'max:191'],
+            'phone' => ['nullable', 'string', 'max:50'],
+            'group_leader_role' => ['nullable', 'string', 'max:191'],
+            'role_duration' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'answers' => ['required', 'array'],
+            'answers.*' => ['nullable'],
         ]);
 
         $decision = ApplicationDecisionService::evaluate($data['answers']);
 
         // 2️⃣ Save inquiry and answers in transaction
+        // Increased timeout to 30 seconds to accommodate AI API calls
         return DB::transaction(function () use ($data, $decision) {
             $inquiry = Inquiry::create([
                 'name' => $data['name'],
@@ -66,11 +67,9 @@ class InquiryController extends Controller
             $inquiry->flags = $flagsToSave;
             $inquiry->save();
 
-            // 4️⃣ Dispatch job to ActiveCampaign for Yellow and Red statuses
-            // Green statuses are auto-approved and don't need follow-up
-            if (in_array($inquiry->status, ['yellow', 'red'], true)) {
-                dispatch(new PushToActiveCampaignJob($inquiry));
-            }
+            // 4️⃣ Dispatch job to ActiveCampaign for ALL statuses (Green, Yellow, Red)
+            // All applicants are tracked in ActiveCampaign for complete visibility
+            dispatch(new PushToActiveCampaignJob($inquiry));
 
             // 5️⃣ Return JSON response with appropriate message and actions
             return response()->json([
@@ -81,12 +80,12 @@ class InquiryController extends Controller
                 'colors' => $decision['colors'] ?? null,
                 'message' => $this->getMessageByStatus($inquiry->status),
                 'signup_link' => $inquiry->status === 'green'
-                    ? config('missions.signup_url', 'https://trip-signup-link.com')
+                    ? config('missions.signup_url')
                     : null,
                 'keyStrengths' => $decision['keyStrengths'] ?? [],
                 'keyConcerns' => $decision['keyConcerns'] ?? [],
             ], 201);
-        }, 5);
+        }, 30);
     }
 
     private function getMessageByStatus(string $status): string

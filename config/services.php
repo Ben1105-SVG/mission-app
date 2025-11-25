@@ -37,17 +37,19 @@ return [
     'activecampaign' => [
         'url' => env('ACTIVE_CAMPAIGN_URL'),
         'key' => env('ACTIVE_CAMPAIGN_KEY'),
+        'mcp_url' => env('ACTIVE_CAMPAIGN_MCP_URL'),
         'tags' => [
-            'green'   => env('AC_TAG_GREEN'),
-            'yellow'  => env('AC_TAG_YELLOW'),
-            'red'     => env('AC_TAG_RED'),
+            'green' => env('AC_TAG_GREEN'),
+            'yellow' => env('AC_TAG_YELLOW'),
+            'red' => env('AC_TAG_RED'),
             'default' => env('AC_TAG_DEFAULT'),
         ],
         'automations' => [
             'yellow' => env('AC_AUTOMATION_YELLOW'),
-            'red'    => env('AC_AUTOMATION_RED'),
+            'red' => env('AC_AUTOMATION_RED'),
         ],
     ],
+
 
 
 ];

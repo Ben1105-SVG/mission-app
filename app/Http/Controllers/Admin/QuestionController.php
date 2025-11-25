@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 
 class QuestionController extends AdminController
 {
-    public function index(Request $request)
+    public function index(Request $request): \Illuminate\Contracts\View\View
     {
         $questions = Question::orderBy('group')
             ->orderBy('id')
@@ -19,12 +19,12 @@ class QuestionController extends AdminController
         ]);
     }
 
-    public function create()
+    public function create(): \Illuminate\Contracts\View\View
     {
         return view('admin.questions.create');
     }
 
-    public function store(Request $request)
+    public function store(Request $request): \Illuminate\Http\RedirectResponse
     {
         $data = $request->validate([
             'group' => ['required', 'integer', 'min:1'],
@@ -60,14 +60,14 @@ class QuestionController extends AdminController
         return redirect()->route('admin.questions.index')->with('status', 'Question added successfully.');
     }
 
-    public function edit(Question $question)
+    public function edit(Question $question): \Illuminate\Contracts\View\View
     {
         return view('admin.questions.edit', [
             'question' => $question,
         ]);
     }
 
-    public function update(Request $request, Question $question)
+    public function update(Request $request, Question $question): \Illuminate\Http\RedirectResponse
     {
         $data = $request->validate([
             'group' => ['required', 'integer', 'min:1'],
@@ -102,7 +102,7 @@ class QuestionController extends AdminController
         return redirect()->route('admin.questions.index')->with('status', 'Question updated successfully.');
     }
 
-    public function destroy(Question $question)
+    public function destroy(Question $question): \Illuminate\Http\RedirectResponse
     {
         $question->delete();
 

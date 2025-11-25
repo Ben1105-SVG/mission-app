@@ -16,7 +16,7 @@ class PushToActiveCampaignJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public Inquiry $inquiry;
+    public ?int $inquiryId = null;
 
     public $tries = 3;
 
@@ -24,36 +24,50 @@ class PushToActiveCampaignJob implements ShouldQueue
 
     public function __construct(Inquiry $inquiry)
     {
-        $this->inquiry = $inquiry->fresh(); // ensure latest model data
+        $this->inquiryId = $inquiry->id;
     }
 
     public function handle(): void
     {
+        // Handle legacy jobs that might have been serialized with the old format
+        if (!$this->inquiryId) {
+            Log::error('Inquiry ID missing in ActiveCampaign job');
+            return;
+        }
+        
+        // Load the inquiry from the database
+        $inquiry = Inquiry::find($this->inquiryId);
+        
+        if (!$inquiry) {
+            Log::error('Inquiry not found for ActiveCampaign job', ['inquiry_id' => $this->inquiryId]);
+            return;
+        }
+        
         $baseUrl = rtrim(config('services.activecampaign.url', ''), '/');
         $apiKey  = config('services.activecampaign.key');
 
         if (empty($baseUrl) || empty($apiKey)) {
-            Log::warning('ActiveCampaign config missing; skipping push', ['inquiry_id' => $this->inquiry->id]);
+            Log::warning('ActiveCampaign config missing; skipping push', ['inquiry_id' => $inquiry->id]);
             return;
         }
 
-        $contactId = $this->syncContact($baseUrl, $apiKey);
+        $contactId = $this->syncContact($baseUrl, $apiKey, $inquiry);
 
         if ($contactId) {
-            $this->assignTag($baseUrl, $apiKey, $contactId);
-            $this->assignAutomation($baseUrl, $apiKey, $contactId);
+            $this->assignTag($baseUrl, $apiKey, $contactId, $inquiry);
+            $this->assignAutomation($baseUrl, $apiKey, $contactId, $inquiry);
         } else {
-            Log::warning('Contact ID missing, skipping tag & automation', ['inquiry_id' => $this->inquiry->id]);
+            Log::warning('Contact ID missing, skipping tag & automation', ['inquiry_id' => $inquiry->id]);
         }
     }
 
-    private function syncContact(string $baseUrl, string $apiKey): ?int
+    private function syncContact(string $baseUrl, string $apiKey, Inquiry $inquiry): ?int
     {
         $payload = [
             'contact' => [
-                'email' => $this->inquiry->email,
-                'firstName' => $this->inquiry->name,
-                'phone' => $this->inquiry->phone,
+                'email' => $inquiry->email,
+                'firstName' => $inquiry->name,
+                'phone' => $inquiry->phone,
             ],
         ];
 
@@ -63,7 +77,7 @@ class PushToActiveCampaignJob implements ShouldQueue
 
             if (!$response->successful()) {
                 Log::error('ActiveCampaign contact sync failed', [
-                    'inquiry_id' => $this->inquiry->id,
+                    'inquiry_id' => $inquiry->id,
                     'status' => $response->status(),
                     'body' => $response->body(),
                 ]);
@@ -73,13 +87,13 @@ class PushToActiveCampaignJob implements ShouldQueue
             $contactId = data_get($response->json(), 'contact.id');
 
             if ($contactId) {
-                $this->inquiry->forceFill(['ac_contact_id' => $contactId])->save();
+                $inquiry->forceFill(['ac_contact_id' => $contactId])->save();
                 
                 // Add all form details as custom field values
-                $this->addCustomFields($baseUrl, $apiKey, $contactId);
+                $this->addCustomFields($baseUrl, $apiKey, $contactId, $inquiry);
             } else {
                 Log::warning('ActiveCampaign sync returned no contact id', [
-                    'inquiry_id' => $this->inquiry->id,
+                    'inquiry_id' => $inquiry->id,
                     'response' => $response->json(),
                 ]);
             }
@@ -87,42 +101,42 @@ class PushToActiveCampaignJob implements ShouldQueue
             return $contactId;
         } catch (Throwable $e) {
             Log::error('ActiveCampaign sync exception', [
-                'inquiry_id' => $this->inquiry->id,
+                'inquiry_id' => $inquiry->id,
                 'exception' => $e->getMessage(),
             ]);
             throw $e;
         }
     }
 
-    private function addCustomFields(string $baseUrl, string $apiKey, int $contactId): void
+    private function addCustomFields(string $baseUrl, string $apiKey, int $contactId, Inquiry $inquiry): void
     {
         try {
             // Get all answers for this inquiry
-            $answers = $this->inquiry->answers()->with('question')->get();
+            $answers = $inquiry->answers()->with('question')->get();
             
             // Build a comprehensive note with all form details for follow-up
-            $statusLabel = strtoupper($this->inquiry->status ?? 'UNKNOWN');
+            $statusLabel = strtoupper($inquiry->status ?? 'UNKNOWN');
             $noteContent = "=== MISSION TRIP APPLICATION ===\n";
             $noteContent .= "Status: {$statusLabel}\n";
-            $noteContent .= "Submitted: " . $this->inquiry->created_at->format('F j, Y \a\t g:i A') . "\n\n";
+            $noteContent .= "Submitted: " . $inquiry->created_at->format('F j, Y \a\t g:i A') . "\n\n";
             
             $noteContent .= "--- Contact Information ---\n";
-            $noteContent .= "Name: {$this->inquiry->name}\n";
-            $noteContent .= "Email: {$this->inquiry->email}\n";
-            if ($this->inquiry->phone) {
-                $noteContent .= "Phone: {$this->inquiry->phone}\n";
+            $noteContent .= "Name: {$inquiry->name}\n";
+            $noteContent .= "Email: {$inquiry->email}\n";
+            if ($inquiry->phone) {
+                $noteContent .= "Phone: {$inquiry->phone}\n";
             }
             
-            if ($this->inquiry->group_leader_role) {
+            if ($inquiry->group_leader_role) {
                 $noteContent .= "\n--- Leadership Information ---\n";
-                $noteContent .= "Group Leader Role: {$this->inquiry->group_leader_role}\n";
-                if ($this->inquiry->role_duration) {
-                    $noteContent .= "Role Duration: {$this->inquiry->role_duration} years\n";
+                $noteContent .= "Group Leader Role: {$inquiry->group_leader_role}\n";
+                if ($inquiry->role_duration) {
+                    $noteContent .= "Role Duration: {$inquiry->role_duration} years\n";
                 }
             }
             
             // Add AI evaluation summary if available
-            $flags = $this->inquiry->flags ?? [];
+            $flags = $inquiry->flags ?? [];
             if (isset($flags['explanations']['internal'])) {
                 $noteContent .= "\n--- AI Evaluation Summary ---\n";
                 $noteContent .= "{$flags['explanations']['internal']}\n";
@@ -145,9 +159,12 @@ class PushToActiveCampaignJob implements ShouldQueue
             }
             
             $noteContent .= "\n--- Next Steps ---\n";
-            if ($this->inquiry->status === 'yellow') {
+            if ($inquiry->status === 'green') {
+                $noteContent .= "STATUS: Auto-approved - Applicant has been provided with signup link.\n";
+                $noteContent .= "ACTION: Monitor for signup completion and payment.\n";
+            } elseif ($inquiry->status === 'yellow') {
                 $noteContent .= "ACTION REQUIRED: Call applicant to discuss application and answer questions.\n";
-            } elseif ($this->inquiry->status === 'red') {
+            } elseif ($inquiry->status === 'red') {
                 $noteContent .= "ACTION REQUIRED: Follow up with applicant about alternative opportunities.\n";
             }
             
@@ -162,27 +179,27 @@ class PushToActiveCampaignJob implements ShouldQueue
             
             if (!$response->successful()) {
                 Log::warning('ActiveCampaign note creation failed', [
-                    'inquiry_id' => $this->inquiry->id,
+                    'inquiry_id' => $inquiry->id,
                     'status' => $response->status(),
                 ]);
             }
         } catch (Throwable $e) {
             // Don't fail the whole job if custom fields fail
             Log::warning('ActiveCampaign custom fields exception', [
-                'inquiry_id' => $this->inquiry->id,
+                'inquiry_id' => $inquiry->id,
                 'exception' => $e->getMessage(),
             ]);
         }
     }
 
-    private function assignTag(string $baseUrl, string $apiKey, int $contactId): void
+    private function assignTag(string $baseUrl, string $apiKey, int $contactId, Inquiry $inquiry): void
     {
-        $status = $this->inquiry->status;
+        $status = $inquiry->status;
         $tagMap = config('services.activecampaign.tags', []);
         $tagId = $tagMap[$status] ?? $tagMap['default'] ?? null;
 
         if (!$tagId) {
-            Log::info('No tag configured for this status', ['inquiry_id' => $this->inquiry->id, 'status' => $status]);
+            Log::info('No tag configured for this status', ['inquiry_id' => $inquiry->id, 'status' => $status]);
             return;
         }
 
@@ -194,7 +211,7 @@ class PushToActiveCampaignJob implements ShouldQueue
 
             if (!$response->successful()) {
                 Log::error('ActiveCampaign add tag failed', [
-                    'inquiry_id' => $this->inquiry->id,
+                    'inquiry_id' => $inquiry->id,
                     'contact_id' => $contactId,
                     'tag_id' => $tagId,
                     'status' => $response->status(),
@@ -203,18 +220,23 @@ class PushToActiveCampaignJob implements ShouldQueue
             }
         } catch (Throwable $e) {
             Log::error('ActiveCampaign tag add exception', [
-                'inquiry_id' => $this->inquiry->id,
+                'inquiry_id' => $inquiry->id,
                 'exception' => $e->getMessage(),
             ]);
         }
     }
 
-    private function assignAutomation(string $baseUrl, string $apiKey, int $contactId): void
+    private function assignAutomation(string $baseUrl, string $apiKey, int $contactId, Inquiry $inquiry): void
     {
-        $status = $this->inquiry->status;
+        $status = $inquiry->status;
         $automationId = config("services.activecampaign.automations.{$status}");
 
+        // Automations are optional - only trigger if configured
         if (empty($automationId)) {
+            Log::info('No automation configured for this status', [
+                'inquiry_id' => $inquiry->id,
+                'status' => $status,
+            ]);
             return;
         }
 
@@ -226,7 +248,7 @@ class PushToActiveCampaignJob implements ShouldQueue
 
             if (!$response->successful()) {
                 Log::error('ActiveCampaign add to automation failed', [
-                    'inquiry_id' => $this->inquiry->id,
+                    'inquiry_id' => $inquiry->id,
                     'automation_id' => $automationId,
                     'status' => $response->status(),
                     'body' => $response->body(),
@@ -234,7 +256,7 @@ class PushToActiveCampaignJob implements ShouldQueue
             }
         } catch (Throwable $e) {
             Log::error('ActiveCampaign automation exception', [
-                'inquiry_id' => $this->inquiry->id,
+                'inquiry_id' => $inquiry->id,
                 'exception' => $e->getMessage(),
             ]);
         }
@@ -243,7 +265,7 @@ class PushToActiveCampaignJob implements ShouldQueue
     public function failed(Throwable $exception): void
     {
         Log::error('PushToActiveCampaignJob failed permanently', [
-            'inquiry_id' => $this->inquiry->id,
+            'inquiry_id' => $this->inquiryId,
             'exception' => $exception->getMessage(),
         ]);
     }

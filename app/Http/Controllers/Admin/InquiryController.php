@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 
 class InquiryController extends AdminController
 {
-    public function index(Request $request)
+    public function index(Request $request): \Illuminate\Contracts\View\View
     {
         $status = $request->query('status');
 
@@ -28,7 +28,7 @@ class InquiryController extends AdminController
         ]);
     }
 
-    public function update(Request $request, Inquiry $inquiry)
+    public function update(Request $request, Inquiry $inquiry): \Illuminate\Http\RedirectResponse
     {
         $data = $request->validate([
             'status' => ['required', 'in:green,yellow,red'],
@@ -60,7 +60,7 @@ class InquiryController extends AdminController
         return back()->with('status', 'Inquiry updated successfully.');
     }
 
-    public function destroy(Inquiry $inquiry)
+    public function destroy(Inquiry $inquiry): \Illuminate\Http\RedirectResponse
     {
         $inquiry->delete();
 

@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Auth;
 
 class AuthenticatedSessionController extends Controller
 {
-    public function create()
+    public function create(): \Illuminate\Contracts\View\View|\Illuminate\Http\RedirectResponse
     {
         if (Auth::check()) {
             $user = Auth::user();
@@ -24,7 +24,7 @@ class AuthenticatedSessionController extends Controller
         return view('auth.login');
     }
 
-    public function store(Request $request)
+    public function store(Request $request): \Illuminate\Http\RedirectResponse
     {
         $credentials = $request->validate([
             'email' => ['required', 'string', 'email'],
@@ -52,7 +52,7 @@ class AuthenticatedSessionController extends Controller
             ->onlyInput('email');
     }
 
-    public function destroy(Request $request)
+    public function destroy(Request $request): \Illuminate\Http\RedirectResponse
     {
         Auth::guard()->logout();
 

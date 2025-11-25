@@ -11,7 +11,7 @@ class ApplicationDecisionService
      * Evaluate answers and return decision via GroqClient.
      * Includes AI-generated colors based on answers.
      */
-    public static function evaluate($inquiry, array $answers): array
+    public static function evaluate(array $answers): array
     {
         $prompt = self::buildPrompt($answers);
         $client = GroqClient::client();
@@ -35,16 +35,16 @@ class ApplicationDecisionService
 
             // Clean JSON block if wrapped in markdown
             $trimmed = trim($text);
-                $trimmed = preg_replace('/^```json\s*/i', '', $trimmed);
-                $trimmed = preg_replace('/^```\s*/', '', $trimmed);
-                $trimmed = preg_replace('/\s*```$/', '', $trimmed);
+            $trimmed = preg_replace('/^```json\s*/i', '', $trimmed);
+            $trimmed = preg_replace('/^```\s*/', '', $trimmed);
+            $trimmed = preg_replace('/\s*```$/', '', $trimmed);
 
             // Extract JSON from text
-                if (preg_match('/\{.*\}/s', $trimmed, $m)) {
-                    $jsonText = $m[0];
-                } else {
-                    $jsonText = $trimmed;
-                }
+            if (preg_match('/\{.*\}/s', $trimmed, $m)) {
+                $jsonText = $m[0];
+            } else {
+                $jsonText = $trimmed;
+            }
 
             // Parse AI response as JSON
             $decision = json_decode($jsonText, true);

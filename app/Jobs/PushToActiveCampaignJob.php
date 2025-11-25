@@ -100,28 +100,55 @@ class PushToActiveCampaignJob implements ShouldQueue
             // Get all answers for this inquiry
             $answers = $this->inquiry->answers()->with('question')->get();
             
-            // Build a summary note with all form details
-            $noteContent = "Application Status: " . strtoupper($this->inquiry->status ?? 'UNKNOWN') . "\n\n";
+            // Build a comprehensive note with all form details for follow-up
+            $statusLabel = strtoupper($this->inquiry->status ?? 'UNKNOWN');
+            $noteContent = "=== MISSION TRIP APPLICATION ===\n";
+            $noteContent .= "Status: {$statusLabel}\n";
+            $noteContent .= "Submitted: " . $this->inquiry->created_at->format('F j, Y \a\t g:i A') . "\n\n";
+            
+            $noteContent .= "--- Contact Information ---\n";
+            $noteContent .= "Name: {$this->inquiry->name}\n";
+            $noteContent .= "Email: {$this->inquiry->email}\n";
+            if ($this->inquiry->phone) {
+                $noteContent .= "Phone: {$this->inquiry->phone}\n";
+            }
             
             if ($this->inquiry->group_leader_role) {
+                $noteContent .= "\n--- Leadership Information ---\n";
                 $noteContent .= "Group Leader Role: {$this->inquiry->group_leader_role}\n";
-            }
-            if ($this->inquiry->role_duration) {
-                $noteContent .= "Role Duration: {$this->inquiry->role_duration} years\n";
+                if ($this->inquiry->role_duration) {
+                    $noteContent .= "Role Duration: {$this->inquiry->role_duration} years\n";
+                }
             }
             
-            // Add internal summary if available
+            // Add AI evaluation summary if available
             $flags = $this->inquiry->flags ?? [];
             if (isset($flags['explanations']['internal'])) {
-                $noteContent .= "\nInternal Summary: {$flags['explanations']['internal']}\n";
+                $noteContent .= "\n--- AI Evaluation Summary ---\n";
+                $noteContent .= "{$flags['explanations']['internal']}\n";
             }
             
-            // Add all question answers
-            $noteContent .= "\n--- Form Responses ---\n";
+            // Add key concerns if available
+            if (isset($flags['flags']) && is_array($flags['flags']) && count($flags['flags']) > 0) {
+                $noteContent .= "\n--- Key Concerns ---\n";
+                foreach ($flags['flags'] as $concern) {
+                    $noteContent .= "• {$concern}\n";
+                }
+            }
+            
+            // Add all question answers for complete context
+            $noteContent .= "\n--- Complete Form Responses ---\n";
             foreach ($answers as $answer) {
                 $questionText = $answer->question->text ?? "Question {$answer->question_id}";
                 $answerText = is_string($answer->answer) ? $answer->answer : json_encode($answer->answer);
                 $noteContent .= "\n{$questionText}\n{$answerText}\n";
+            }
+            
+            $noteContent .= "\n--- Next Steps ---\n";
+            if ($this->inquiry->status === 'yellow') {
+                $noteContent .= "ACTION REQUIRED: Call applicant to discuss application and answer questions.\n";
+            } elseif ($this->inquiry->status === 'red') {
+                $noteContent .= "ACTION REQUIRED: Follow up with applicant about alternative opportunities.\n";
             }
             
             // Add note to contact
@@ -185,7 +212,7 @@ class PushToActiveCampaignJob implements ShouldQueue
     private function assignAutomation(string $baseUrl, string $apiKey, int $contactId): void
     {
         $status = $this->inquiry->status;
-        $automationId = config("services.activecampaign.tags.automations.{$status}");
+        $automationId = config("services.activecampaign.automations.{$status}");
 
         if (empty($automationId)) {
             return;

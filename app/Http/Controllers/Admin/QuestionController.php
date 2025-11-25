@@ -2,19 +2,26 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Http\Controllers\Controller;
 use App\Models\Question;
 use Illuminate\Http\Request;
 
-class QuestionController extends Controller
+class QuestionController extends AdminController
 {
-    public function index()
+    public function index(Request $request)
     {
-        $questions = Question::orderBy('group')->orderBy('id')->get();
+        $questions = Question::orderBy('group')
+            ->orderBy('id')
+            ->paginate(10)
+            ->withQueryString();
 
         return view('admin.questions.index', [
             'questions' => $questions,
         ]);
+    }
+
+    public function create()
+    {
+        return view('admin.questions.create');
     }
 
     public function store(Request $request)
@@ -24,18 +31,75 @@ class QuestionController extends Controller
             'text' => ['required', 'string'],
             'key' => ['required', 'string', 'max:255'],
             'type' => ['nullable', 'string', 'max:50'],
+            'options' => ['nullable'],
             'hint' => ['nullable', 'string'],
         ]);
+
+        // Parse options if provided as JSON string
+        $options = null;
+        if (!empty($data['options'])) {
+            if (is_string($data['options'])) {
+                $decoded = json_decode($data['options'], true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $options = $decoded;
+                }
+            } elseif (is_array($data['options'])) {
+                $options = $data['options'];
+            }
+        }
 
         Question::create([
             'group' => $data['group'],
             'text' => $data['text'],
             'key' => $data['key'],
             'type' => $data['type'] ?? null,
+            'options' => $options,
             'hint' => $data['hint'] ?? null,
         ]);
 
-        return back()->with('status', 'Question added.');
+        return redirect()->route('admin.questions.index')->with('status', 'Question added successfully.');
+    }
+
+    public function edit(Question $question)
+    {
+        return view('admin.questions.edit', [
+            'question' => $question,
+        ]);
+    }
+
+    public function update(Request $request, Question $question)
+    {
+        $data = $request->validate([
+            'group' => ['required', 'integer', 'min:1'],
+            'text' => ['required', 'string'],
+            'key' => ['required', 'string', 'max:255'],
+            'type' => ['nullable', 'string', 'max:50'],
+            'options' => ['nullable', 'string'],
+            'hint' => ['nullable', 'string'],
+        ]);
+
+        // Parse options if provided as JSON string
+        $options = null;
+        if (!empty($data['options'])) {
+            $decoded = json_decode($data['options'], true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $options = $decoded;
+            } else {
+                // If not valid JSON, try to treat as array
+                $options = is_array($data['options']) ? $data['options'] : null;
+            }
+        }
+
+        $question->update([
+            'group' => $data['group'],
+            'text' => $data['text'],
+            'key' => $data['key'],
+            'type' => $data['type'] ?? null,
+            'options' => $options,
+            'hint' => $data['hint'] ?? null,
+        ]);
+
+        return redirect()->route('admin.questions.index')->with('status', 'Question updated successfully.');
     }
 
     public function destroy(Question $question)
@@ -45,6 +109,3 @@ class QuestionController extends Controller
         return back()->with('status', 'Question removed.');
     }
 }
-
-
-    

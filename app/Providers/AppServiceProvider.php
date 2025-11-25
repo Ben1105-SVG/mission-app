@@ -32,5 +32,9 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('manage-questions', function (User $user) {
             return $user->isAdmin() || $user->isModerator();
         });
+
+        // Set default pagination view
+        \Illuminate\Pagination\Paginator::defaultView('pagination::tailwind');
+        \Illuminate\Pagination\Paginator::defaultSimpleView('pagination::simple-tailwind');
     }
 }

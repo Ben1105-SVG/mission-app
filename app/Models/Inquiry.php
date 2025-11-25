@@ -26,10 +26,11 @@ class Inquiry extends Model
         'first_trip' => 'boolean',
         'lgbtq' => 'boolean',
         'flags' => 'array',
+        'role_duration' => 'decimal:2',
     ];
 
 
-    public function answers()
+    public function answers(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(Answer::class);
     }

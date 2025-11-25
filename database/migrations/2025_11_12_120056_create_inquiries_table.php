@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('email');
             $table->string('phone')->nullable();
             $table->string('group_leader_role')->nullable();
-            $table->integer('role_duration')->nullable();
+            $table->decimal('role_duration', 5, 2)->nullable();
             $table->boolean('first_trip')->default(false);
             $table->boolean('lgbtq')->default(false);
             $table->enum('status', ['green', 'yellow', 'red'])->nullable();

@@ -21,11 +21,12 @@ class InquiryController extends Controller
             'email' => 'required|email|max:191',
             'phone' => 'nullable|string|max:50',
             'group_leader_role' => 'nullable|string|max:191',
-            'role_duration' => 'nullable|numeric',
+            'role_duration' => 'nullable|numeric|min:0',
             'answers' => 'required|array',
+            'answers.*' => 'nullable',
         ]);
 
-        $decision = ApplicationDecisionService::evaluate(null, $data['answers']);
+        $decision = ApplicationDecisionService::evaluate($data['answers']);
 
         // 2️⃣ Save inquiry and answers in transaction
         return DB::transaction(function () use ($data, $decision) {
@@ -34,7 +35,7 @@ class InquiryController extends Controller
                 'email' => $data['email'],
                 'phone' => $data['phone'] ?? null,
                 'group_leader_role' => $data['group_leader_role'] ?? null,
-                'role_duration' => isset($data['role_duration']) ? floatval($data['role_duration']) : null,
+                'role_duration' => isset($data['role_duration']) ? (float) $data['role_duration'] : null,
             ]);
 
             foreach ($data['answers'] as $questionId => $answer) {
@@ -65,12 +66,13 @@ class InquiryController extends Controller
             $inquiry->flags = $flagsToSave;
             $inquiry->save();
 
-            // 4️⃣ Dispatch job if needed
+            // 4️⃣ Dispatch job to ActiveCampaign for Yellow and Red statuses
+            // Green statuses are auto-approved and don't need follow-up
             if (in_array($inquiry->status, ['yellow', 'red'], true)) {
                 dispatch(new PushToActiveCampaignJob($inquiry));
             }
 
-            // 5️⃣ Return JSON response
+            // 5️⃣ Return JSON response with appropriate message and actions
             return response()->json([
                 'status' => $inquiry->status,
                 'flags' => $decision['flags'] ?? [],
@@ -81,17 +83,19 @@ class InquiryController extends Controller
                 'signup_link' => $inquiry->status === 'green'
                     ? config('missions.signup_url', 'https://trip-signup-link.com')
                     : null,
+                'keyStrengths' => $decision['keyStrengths'] ?? [],
+                'keyConcerns' => $decision['keyConcerns'] ?? [],
             ], 201);
         }, 5);
     }
 
-    private function getMessageByStatus($status)
+    private function getMessageByStatus(string $status): string
     {
         return match($status) {
-            'green' => 'Congratulations! You are approved. You can sign up for the trip.',
-            'yellow' => 'Thanks for applying! Someone will follow up with you soon.',
-            'red' => 'Thank you for your interest. We will be in touch for other opportunities.',
-            default => '',
+            'green' => 'Congratulations! Your application has been approved. You can now sign up for the trip and pay your deposit using the link below.',
+            'yellow' => 'Thank you for your application! A member of our team will reach out to you soon to discuss next steps and answer any questions you may have.',
+            'red' => 'Thank you for your interest in our mission trip. While we\'re not able to move forward with this particular opportunity at this time, we\'d love to stay connected and explore other ways you can be involved in our mission work. Our team will be in touch soon.',
+            default => 'Thank you for your application. We will review it and get back to you soon.',
         };
     }
 }

@@ -1,42 +1,31 @@
 <?php
 
-use App\Http\Controllers\Admin\InquiryController as AdminInquiryController;
-use App\Http\Controllers\Admin\QuestionController as AdminQuestionController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
-use App\Models\User;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
 
+/*
+|--------------------------------------------------------------------------
+| Web Routes
+|--------------------------------------------------------------------------
+|
+| Here is where you can register web routes for your application. These
+| routes are loaded by the RouteServiceProvider and all of them will
+| be assigned to the "web" middleware group. Make something great!
+|
+*/
+
+// Authentication routes
 Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
 Route::post('/login', [AuthenticatedSessionController::class, 'store'])->name('login.store');
 Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->middleware('auth')->name('logout');
 
+// Dashboard route (for authenticated users)
 Route::middleware('auth')->get('/dashboard', function () {
     return view('dashboard');
 })->name('dashboard');
 
-Route::middleware(['auth', 'can:access-admin'])->prefix('admin')->name('admin.')->group(function () {
-    Route::get('/', function () {
-        $user = auth()->user();
-        if ($user && $user->can('manage-inquiries')) {
-            return redirect()->route('admin.inquiries.index');
-        }
-        return redirect()->route('admin.questions.index');
-    });
-
-    Route::middleware('can:manage-inquiries')->group(function () {
-        Route::get('/inquiries', [AdminInquiryController::class, 'index'])->name('inquiries.index');
-        Route::patch('/inquiries/{inquiry}', [AdminInquiryController::class, 'update'])->name('inquiries.update');
-        Route::delete('/inquiries/{inquiry}', [AdminInquiryController::class, 'destroy'])->name('inquiries.destroy');
-    });
-
-    Route::middleware('can:manage-questions')->group(function () {
-        Route::get('/questions', [AdminQuestionController::class, 'index'])->name('questions.index');
-        Route::post('/questions', [AdminQuestionController::class, 'store'])->name('questions.store');
-        Route::delete('/questions/{question}', [AdminQuestionController::class, 'destroy'])->name('questions.destroy');
-    });
-});
-
+// Public routes
 Route::view('/', 'welcome');
 
-Route::view('/{any}', 'welcome')->where('any', '^(?!admin|login|logout).*$');
+// Catch-all route for frontend SPA (excludes admin, login, logout)
+Route::view('/{any}', 'welcome')->where('any', '^(?!admin|login|logout|dashboard|api).*$');

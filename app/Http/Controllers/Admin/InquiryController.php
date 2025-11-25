@@ -2,11 +2,10 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Http\Controllers\Controller;
 use App\Models\Inquiry;
 use Illuminate\Http\Request;
 
-class InquiryController extends Controller
+class InquiryController extends AdminController
 {
     public function index(Request $request)
     {
@@ -15,7 +14,7 @@ class InquiryController extends Controller
         $inquiries = Inquiry::query()
             ->when($status, fn ($query) => $query->where('status', $status))
             ->orderByDesc('created_at')
-            ->paginate(15)
+            ->paginate(10)
             ->withQueryString();
 
         $totals = Inquiry::selectRaw('status, COUNT(*) as count')
@@ -79,5 +78,3 @@ class InquiryController extends Controller
         return array_values(array_filter(array_map('trim', $lines)));
     }
 }
-
-

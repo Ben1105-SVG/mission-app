@@ -35,19 +35,17 @@ return [
         ],
     ],
     'activecampaign' => [
-        'url' => env('ACTIVE_CAMPAIGN_URL'),   // e.g. https://youraccount.api-us1.com
+        'url' => env('ACTIVE_CAMPAIGN_URL'),
         'key' => env('ACTIVE_CAMPAIGN_KEY'),
-        // tags: set tag ids created in ActiveCampaign for each status
         'tags' => [
-            'green' => env('AC_TAG_GREEN'),   // optional tag id for green
-            'yellow' => env('AC_TAG_YELLOW'), // tag id for yellow follow-up
-            'red' => env('AC_TAG_RED'),       // tag id for red
-            'default' => env('AC_TAG_DEFAULT'), // fallback tag
-            // optional automations mapping
-            'automations' => [
-                'yellow' => env('AC_AUTOMATION_YELLOW'),
-                'red' => env('AC_AUTOMATION_RED'),
-            ],
+            'green'   => env('AC_TAG_GREEN'),
+            'yellow'  => env('AC_TAG_YELLOW'),
+            'red'     => env('AC_TAG_RED'),
+            'default' => env('AC_TAG_DEFAULT'),
+        ],
+        'automations' => [
+            'yellow' => env('AC_AUTOMATION_YELLOW'),
+            'red'    => env('AC_AUTOMATION_RED'),
         ],
     ],
 

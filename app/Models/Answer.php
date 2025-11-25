@@ -11,12 +11,12 @@ class Answer extends Model
 
     protected $fillable = ['inquiry_id', 'question_id', 'answer'];
 
-    public function inquiry()
+    public function inquiry(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Inquiry::class);
     }
 
-    public function question()
+    public function question(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Question::class);
     }

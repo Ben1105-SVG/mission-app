@@ -37,7 +37,7 @@ class PushToActiveCampaignJob implements ShouldQueue
         
         // Load the inquiry from the database
         $inquiry = Inquiry::find($this->inquiryId);
-        
+
         if (!$inquiry) {
             Log::error('Inquiry not found for ActiveCampaign job', ['inquiry_id' => $this->inquiryId]);
             return;
@@ -47,13 +47,14 @@ class PushToActiveCampaignJob implements ShouldQueue
         $apiKey  = config('services.activecampaign.key');
 
         if (empty($baseUrl) || empty($apiKey)) {
+            dd(22222);
             Log::warning('ActiveCampaign config missing; skipping push', ['inquiry_id' => $inquiry->id]);
             return;
         }
-
         $contactId = $this->syncContact($baseUrl, $apiKey, $inquiry);
-
+//dd($contactId);
         if ($contactId) {
+            dd( $this->assignTag($baseUrl, $apiKey, $contactId, $inquiry),);
             $this->assignTag($baseUrl, $apiKey, $contactId, $inquiry);
             $this->assignAutomation($baseUrl, $apiKey, $contactId, $inquiry);
         } else {
@@ -169,18 +170,39 @@ class PushToActiveCampaignJob implements ShouldQueue
             }
             
             // Add note to contact
+            // Truncate note if too long (ActiveCampaign has limits)
+            $maxNoteLength = 65000; // ActiveCampaign note limit
+            if (strlen($noteContent) > $maxNoteLength) {
+                $noteContent = substr($noteContent, 0, $maxNoteLength - 100) . "\n\n[Note truncated due to length...]";
+            }
+            
+            // ActiveCampaign API requires relid and reltype for notes
+            // For contact notes: reltype = "Subscriber", relid = contact_id
             $response = Http::withHeaders(['Api-Token' => $apiKey])
+                ->timeout(10)
                 ->post($baseUrl . '/api/3/notes', [
                     'note' => [
-                        'contact' => $contactId,
+                        'relid' => $contactId,
+                        'reltype' => 'Subscriber',
                         'note' => $noteContent,
                     ],
                 ]);
             
             if (!$response->successful()) {
+                $errorBody = $response->json();
+                $errorMessage = $errorBody['message'] ?? $response->body();
+                
                 Log::warning('ActiveCampaign note creation failed', [
                     'inquiry_id' => $inquiry->id,
+                    'contact_id' => $contactId,
                     'status' => $response->status(),
+                    'error' => $errorMessage,
+                    'note_length' => strlen($noteContent),
+                ]);
+            } else {
+                Log::info('ActiveCampaign note created successfully', [
+                    'inquiry_id' => $inquiry->id,
+                    'contact_id' => $contactId,
                 ]);
             }
         } catch (Throwable $e) {

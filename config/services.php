@@ -48,6 +48,11 @@ return [
             'yellow' => env('AC_AUTOMATION_YELLOW'),
             'red' => env('AC_AUTOMATION_RED'),
         ],
+        'campaigns' => [
+            'green' => env('AC_CAMPAIGN_GREEN'),
+            'yellow' => env('AC_CAMPAIGN_YELLOW'),
+            'red' => env('AC_CAMPAIGN_RED'),
+        ],
     ],
 
 

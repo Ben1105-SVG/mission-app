@@ -10,6 +10,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Throwable;
 
 class PushToActiveCampaignJob implements ShouldQueue
@@ -47,16 +48,16 @@ class PushToActiveCampaignJob implements ShouldQueue
         $apiKey  = config('services.activecampaign.key');
 
         if (empty($baseUrl) || empty($apiKey)) {
-            dd(22222);
             Log::warning('ActiveCampaign config missing; skipping push', ['inquiry_id' => $inquiry->id]);
             return;
         }
+        
         $contactId = $this->syncContact($baseUrl, $apiKey, $inquiry);
-//dd($contactId);
+        
         if ($contactId) {
-            dd( $this->assignTag($baseUrl, $apiKey, $contactId, $inquiry),);
             $this->assignTag($baseUrl, $apiKey, $contactId, $inquiry);
             $this->assignAutomation($baseUrl, $apiKey, $contactId, $inquiry);
+            $this->sendEmail($baseUrl, $apiKey, $contactId, $inquiry);
         } else {
             Log::warning('Contact ID missing, skipping tag & automation', ['inquiry_id' => $inquiry->id]);
         }
@@ -283,6 +284,162 @@ class PushToActiveCampaignJob implements ShouldQueue
             ]);
         }
     }
+
+    private function sendEmail(string $baseUrl, string $apiKey, int $contactId, Inquiry $inquiry): void
+    {
+        $status = $inquiry->status;
+        $listId = config("services.activecampaign.campaigns.{$status}");
+
+        // If list ID is configured, try adding contact to list first
+        // Otherwise, send email directly
+        if (!empty($listId)) {
+            try {
+                // Add contact to a list - this will trigger any campaigns/automations on that list
+                // ActiveCampaign will automatically send emails if the list has a campaign or automation
+                $response = Http::withHeaders(['Api-Token' => $apiKey])
+                    ->post($baseUrl . '/api/3/contactLists', [
+                        'contactList' => [
+                            'list' => (int) $listId,
+                            'contact' => $contactId,
+                            'status' => 1, // 1 = Active/Subscribed
+                        ],
+                    ]);
+
+                if ($response->successful()) {
+                    Log::info('ActiveCampaign contact added to list - email will be sent', [
+                        'inquiry_id' => $inquiry->id,
+                        'contact_id' => $contactId,
+                        'list_id' => $listId,
+                        'status' => $status,
+                    ]);
+                    return; // Success - email will be sent via list campaign/automation
+                } else {
+                    Log::warning('Failed to add contact to list, trying direct email', [
+                        'inquiry_id' => $inquiry->id,
+                        'status' => $response->status(),
+                        'body' => $response->body(),
+                    ]);
+                    // Fall through to direct email sending
+                }
+            } catch (Throwable $e) {
+                Log::warning('Exception adding contact to list, trying direct email', [
+                    'inquiry_id' => $inquiry->id,
+                    'exception' => $e->getMessage(),
+                ]);
+                // Fall through to direct email sending
+            }
+        }
+
+        // Send email directly (either because no list configured or list method failed)
+        Log::info('Sending email directly via ActiveCampaign API', [
+            'inquiry_id' => $inquiry->id,
+            'contact_id' => $contactId,
+            'status' => $status,
+        ]);
+        $this->sendMessageDirectly($baseUrl, $apiKey, $contactId, $inquiry);
+    }
+
+    private function sendMessageDirectly(string $baseUrl, string $apiKey, int $contactId, Inquiry $inquiry): void
+    {
+        try {
+            Log::info('Starting direct email send process', [
+                'inquiry_id' => $inquiry->id,
+                'contact_id' => $contactId,
+            ]);
+            
+            // Use Laravel Mail to send email directly
+            // This is the most reliable method and works with your existing mail configuration
+            $email = $inquiry->email;
+            $name = $inquiry->name;
+            $htmlContent = $this->getEmailContent($inquiry, $name);
+            $textContent = $this->getEmailTextContent($inquiry, $name);
+            
+            Mail::send([], [], function ($message) use ($email, $name, $inquiry, $htmlContent, $textContent) {
+                $message->to($email, $name)
+                    ->subject($this->getEmailSubject($inquiry->status))
+                    ->html($htmlContent)
+                    ->text($textContent);
+            });
+
+            Log::info('✅ Email sent successfully via Laravel Mail', [
+                'inquiry_id' => $inquiry->id,
+                'contact_id' => $contactId,
+                'email' => $email,
+                'status' => $inquiry->status,
+            ]);
+        } catch (Throwable $e) {
+            Log::error('Failed to send email via Laravel Mail', [
+                'inquiry_id' => $inquiry->id,
+                'contact_id' => $contactId,
+                'email' => $inquiry->email,
+                'exception' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+        }
+    }
+
+    private function getEmailSubject(string $status): string
+    {
+        return match($status) {
+            'green' => 'Congratulations! Your Mission Trip Application Has Been Approved',
+            'yellow' => 'Thank You for Your Mission Trip Application',
+            'red' => 'Thank You for Your Interest in Our Mission Trip',
+            default => 'Mission Trip Application Received',
+        };
+    }
+
+    private function getEmailContent(Inquiry $inquiry, string $name): string
+    {
+        $status = $inquiry->status;
+        
+        $message = match($status) {
+            'green' => 'Congratulations! Your application has been approved. You can now sign up for the trip and pay your deposit.',
+            'yellow' => 'Thank you for your application! A member of our team will reach out to you soon to discuss next steps and answer any questions you may have.',
+            'red' => 'Thank you for your interest in our mission trip. While we\'re not able to move forward with this particular opportunity at this time, we\'d love to stay connected and explore other ways you can be involved in our mission work. Our team will be in touch soon.',
+            default => 'Thank you for your application. We will review it and get back to you soon.',
+        };
+
+        $signupLink = ($status === 'green' && config('missions.signup_url')) 
+            ? '<p style="margin: 20px 0;"><a href="' . config('missions.signup_url') . '" style="background-color: #22c55e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Reserve Your Trip</a></p>'
+            : '';
+
+        return "
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='utf-8'>
+            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+        </head>
+        <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;'>
+            <h2 style='color: #22c55e;'>Hello {$name},</h2>
+            <p>{$message}</p>
+            {$signupLink}
+            <p style='margin-top: 30px; font-size: 12px; color: #666;'>
+                If you have any questions, please don't hesitate to contact us at stm@adventures.org
+            </p>
+        </body>
+        </html>
+        ";
+    }
+
+    private function getEmailTextContent(Inquiry $inquiry, string $name): string
+    {
+        $status = $inquiry->status;
+        
+        $message = match($status) {
+            'green' => 'Congratulations! Your application has been approved. You can now sign up for the trip and pay your deposit.',
+            'yellow' => 'Thank you for your application! A member of our team will reach out to you soon to discuss next steps and answer any questions you may have.',
+            'red' => 'Thank you for your interest in our mission trip. While we\'re not able to move forward with this particular opportunity at this time, we\'d love to stay connected and explore other ways you can be involved in our mission work. Our team will be in touch soon.',
+            default => 'Thank you for your application. We will review it and get back to you soon.',
+        };
+
+        $signupLink = ($status === 'green' && config('missions.signup_url')) 
+            ? "\n\nReserve your trip: " . config('missions.signup_url')
+            : '';
+
+        return "Hello {$name},\n\n{$message}{$signupLink}\n\nIf you have any questions, please contact us at stm@adventures.org";
+    }
+
 
     public function failed(Throwable $exception): void
     {

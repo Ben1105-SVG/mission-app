@@ -8,7 +8,6 @@ use App\Models\Answer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Jobs\PushToActiveCampaignJob;
-use Illuminate\Support\Facades\Artisan;
 
 class InquiryController extends Controller
 {
@@ -77,12 +76,6 @@ class InquiryController extends Controller
                     'error' => $e->getMessage(),
                 ]);
             }
-            
-            // Optional: Call TestApplicationSubmission command programmatically if needed
-            // Note: This command is designed for testing and makes HTTP requests, 
-            // so it's not typically needed here since we're already processing the submission.
-            // Uncomment the line below if you need to trigger it for testing purposes:
-            // Artisan::call('test:application', ['--status' => $inquiry->status, '--email' => $inquiry->email]);
             
             // 5️⃣ Return JSON response with appropriate message and actions
             return response()->json([

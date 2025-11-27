@@ -11,9 +11,9 @@ class TestApplicationSubmission extends Command
 {
     protected $signature = 'test:application 
                             {--status= : Force a specific status (green/yellow/red) for testing. If not provided, AI will determine the status}
-                            {--name= : Applicant name (default: "Test Applicanttttttttttttttt")}
+                            {--name= : Applicant name (default: "Test by Armen")}
                             {--email= : Applicant email address (default: auto-generated)}
-                            {--phone= : Applicant phone number (default: "+1234567890")}
+                            {--phone= : Applicant phone number (default: "+37493655205")}
                             {--group-leader-role= : Group leader role (default: "Youth Pastor")}
                             {--role-duration= : Role duration in years (default: 2.5)}
                             {--show-status-only : Only output the AI-determined status (useful for scripting)}
@@ -23,7 +23,6 @@ class TestApplicationSubmission extends Command
 
     public function handle(): int
     {
-
         $showStatusOnly = $this->option('show-status-only');
         
         if (!$showStatusOnly) {
@@ -59,9 +58,9 @@ class TestApplicationSubmission extends Command
 
         // Build payload with user-provided or default values
         $payload = [
-            'name' => $this->option('name') ?? 'Test Applicantttttttttt',
+            'name' => $this->option('name') ?? 'Test By Armen',
             'email' => $this->option('email') ?? 'test-' . time() . '@example.com',
-            'phone' => $this->option('phone') ?? '+1234567890',
+            'phone' => $this->option('phone') ?? '+37493655205',
             'group_leader_role' => $this->option('group-leader-role') ?? 'Youth Pastor',
             'role_duration' => $this->option('role-duration') ? (float) $this->option('role-duration') : 2.5,
             'answers' => $answers,

@@ -105,21 +105,105 @@
                 </table>
             </div>
 
-            @if ($questions->hasPages())
-                <div class="border-t border-slate-200 bg-slate-50 px-6 py-4">
-                    {{ $questions->links() }}
-                </div>
-            @elseif ($questions->total() > 0)
-                <div class="border-t border-slate-200 bg-slate-50 px-6 py-4">
-                    <div class="text-sm text-slate-600 text-center">
+            <div class="border-t border-slate-200 bg-slate-50 px-6 py-4">
+                @if ($questions->hasPages())
+                    <div class="flex flex-col items-center justify-between gap-4 text-sm text-slate-600 sm:flex-row">
+                        <div>
+                            <span class="font-medium">Showing</span>
+                            <span class="font-semibold text-slate-900">{{ $questions->firstItem() ?? 0 }}</span>
+                            <span class="font-medium">to</span>
+                            <span class="font-semibold text-slate-900">{{ $questions->lastItem() ?? 0 }}</span>
+                            <span class="font-medium">of</span>
+                            <span class="font-semibold text-slate-900">{{ $questions->total() }}</span>
+                            <span class="font-medium">results</span>
+                        </div>
+                        @php
+                            $current = $questions->currentPage();
+                            $last = $questions->lastPage();
+
+                            // Window of up to 3 pages around the current page
+                            $start = max(1, $current - 1);
+                            $end = min($last, $start + 2);
+                            $start = max(1, $end - 2);
+                        @endphp
+                        <nav class="flex items-center gap-1 text-xs font-medium text-slate-600" aria-label="Pagination">
+                            {{-- First --}}
+                            @if ($current > 1)
+                                <a href="{{ $questions->url(1) }}"
+                                   class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white hover:bg-slate-100"
+                                   aria-label="First page">
+                                    &laquo;
+                                </a>
+                            @else
+                                <span class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-100 bg-slate-50 text-slate-300 cursor-default">
+                                    &laquo;
+                                </span>
+                            @endif
+
+                            {{-- Previous --}}
+                            @if ($current > 1)
+                                <a href="{{ $questions->url($current - 1) }}"
+                                   class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white hover:bg-slate-100"
+                                   aria-label="Previous page">
+                                    &lsaquo;
+                                </a>
+                            @else
+                                <span class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-100 bg-slate-50 text-slate-300 cursor-default">
+                                    &lsaquo;
+                                </span>
+                            @endif
+
+                            {{-- Page numbers (max 3) --}}
+                            @for ($page = $start; $page <= $end; $page++)
+                                @if ($page == $current)
+                                    <span class="inline-flex h-8 min-w-[2rem] items-center justify-center rounded-full bg-emerald-600 px-3 text-xs font-semibold text-white">
+                                        {{ $page }}
+                                    </span>
+                                @else
+                                    <a href="{{ $questions->url($page) }}"
+                                       class="inline-flex h-8 min-w-[2rem] items-center justify-center rounded-full border border-slate-200 bg-white px-3 text-xs hover:bg-slate-100">
+                                        {{ $page }}
+                                    </a>
+                                @endif
+                            @endfor
+
+                            {{-- Next --}}
+                            @if ($current < $last)
+                                <a href="{{ $questions->url($current + 1) }}"
+                                   class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white hover:bg-slate-100"
+                                   aria-label="Next page">
+                                    &rsaquo;
+                                </a>
+                            @else
+                                <span class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-100 bg-slate-50 text-slate-300 cursor-default">
+                                    &rsaquo;
+                                </span>
+                            @endif
+
+                            {{-- Last --}}
+                            @if ($current < $last)
+                                <a href="{{ $questions->url($last) }}"
+                                   class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white hover:bg-slate-100"
+                                   aria-label="Last page">
+                                    &raquo;
+                                </a>
+                            @else
+                                <span class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-100 bg-slate-50 text-slate-300 cursor-default">
+                                    &raquo;
+                                </span>
+                            @endif
+                        </nav>
+                    </div>
+                @else
+                    <div class="text-center text-sm text-slate-600">
                         <span class="font-medium">Showing</span>
                         <span class="font-semibold text-slate-900">{{ $questions->count() }}</span>
                         <span class="font-medium">of</span>
                         <span class="font-semibold text-slate-900">{{ $questions->total() }}</span>
                         <span class="font-medium">results</span>
                     </div>
-                </div>
-            @endif
+                @endif
+            </div>
         </section>
     </div>
 @endsection

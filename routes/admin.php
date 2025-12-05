@@ -29,6 +29,7 @@ Route::middleware(['auth', 'can:access-admin'])->prefix('admin')->name('admin.')
     Route::middleware('can:manage-inquiries')->group(function () {
         Route::get('/inquiries', [InquiryController::class, 'index'])->name('inquiries.index');
         Route::patch('/inquiries/{inquiry}', [InquiryController::class, 'update'])->name('inquiries.update');
+        Route::post('/inquiries/{inquiry}/send-email', [InquiryController::class, 'sendEmail'])->name('inquiries.sendEmail');
         Route::delete('/inquiries/{inquiry}', [InquiryController::class, 'destroy'])->name('inquiries.destroy');
     });
 

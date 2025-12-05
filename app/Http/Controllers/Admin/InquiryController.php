@@ -3,10 +3,15 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Models\Inquiry;
+use App\Services\InquiryEmailService;
 use Illuminate\Http\Request;
 
 class InquiryController extends AdminController
 {
+    public function __construct(private InquiryEmailService $inquiryEmailService)
+    {
+    }
+
     public function index(Request $request): \Illuminate\Contracts\View\View
     {
         $status = $request->query('status');
@@ -58,6 +63,20 @@ class InquiryController extends AdminController
         $inquiry->save();
 
         return back()->with('status', 'Inquiry updated successfully.');
+    }
+
+    public function sendEmail(Inquiry $inquiry): \Illuminate\Http\RedirectResponse
+    {
+        try {
+            $this->inquiryEmailService->send($inquiry);
+        } catch (\Throwable $e) {
+            report($e);
+            return back()->withErrors([
+                'email' => 'Unable to send email. Please check the logs for more details.',
+            ]);
+        }
+
+        return back()->with('status', 'Email sent to ' . $inquiry->email . '.');
     }
 
     public function destroy(Inquiry $inquiry): \Illuminate\Http\RedirectResponse
